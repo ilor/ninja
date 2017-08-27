@@ -517,8 +517,9 @@ bool ImplicitDepLoader::LoadDepFile(Edge* edge, const string& path,
   METRIC_RECORD("depfile load");
   std::vector<Node*> depfile_deps;
   if (!LoadDepfileDeps(edge, path, &depfile_deps, err))
-      return false;
-  ApplyLoadedDeps(edge, &depfile_deps[0], depfile_deps.size());
+    return false;
+  if (!depfile_deps.empty())
+    ApplyLoadedDeps(edge, &depfile_deps[0], depfile_deps.size());
   return true;
 }
 

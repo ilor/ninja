@@ -566,45 +566,20 @@ void MissingDependencyScanner::ProcessNode(Node* node) {
     ProcessNode(*in);
   }
 
-  DepsLog::Deps* deps = deps_log_->GetDeps(node);
-  if (deps) {
+  string deps_type = edge->GetBinding("deps");
+  if (!deps_type.empty()) {
+    DepsLog::Deps* deps = deps_log_->GetDeps(node);
     ProcessNodeDeps(node, deps->nodes, deps->node_count);
   } else {
+    ImplicitDepLoader dep_loader(state_, deps_log_, disk_interface_);
+    vector<Node*> depfile_deps;
     string depfile = edge->GetUnescapedDepfile();
     if (depfile.empty())
       return;
     string err;
-    string content;
-    disk_interface_->ReadFile(depfile, &content, &err);
-    if (content.empty())
-      return;
-    DepfileParser depfile_parser;
-    string depfile_err;
-    if (!depfile_parser.Parse(&content, &depfile_err))
-      return;
-    string canon_err;
-    uint64_t slash_bits;
-    if (!CanonicalizePath(const_cast<char*>(depfile_parser.out_.str_),
-                          &depfile_parser.out_.len_,
-                          &slash_bits, &canon_err))
-      return;
-    Node* first_output = edge->outputs_[0];
-    StringPiece opath = StringPiece(first_output->path());
-    if (opath != depfile_parser.out_)
-      return;
-    vector<Node*> dep_nodes;
-    for (vector<StringPiece>::iterator i = depfile_parser.ins_.begin();
-         i != depfile_parser.ins_.end(); ++i) {
-      uint64_t slash_bits;
-      if (!CanonicalizePath(const_cast<char*>(i->str_), &i->len_, &slash_bits,
-                            &canon_err))
-        return;
-
-      Node* node = state_->GetNode(*i, slash_bits);
-      dep_nodes.push_back(node);
-    }
-    if (!dep_nodes.empty())
-      ProcessNodeDeps(node, &dep_nodes[0], dep_nodes.size());
+    dep_loader.LoadDepfileDeps(edge, depfile, &depfile_deps, &err);
+    if (!depfile_deps.empty())
+      ProcessNodeDeps(node, &depfile_deps[0], depfile_deps.size());
   }
 }
 
