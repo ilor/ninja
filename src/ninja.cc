@@ -574,17 +574,19 @@ void MissingDependencyScanner::ProcessNode(Node* node) {
     if (depfile.empty())
       return;
     string err;
-    string content = disk_interface_->ReadFile(depfile, &err);
+    string content;
+    disk_interface_->ReadFile(depfile, &content, &err);
     if (content.empty())
       return;
     DepfileParser depfile_parser;
     string depfile_err;
     if (!depfile_parser.Parse(&content, &depfile_err))
       return;
-    unsigned int unused;
     string canon_err;
+    uint64_t slash_bits;
     if (!CanonicalizePath(const_cast<char*>(depfile_parser.out_.str_),
-                          &depfile_parser.out_.len_, &unused, &canon_err))
+                          &depfile_parser.out_.len_,
+                          &slash_bits, &canon_err))
       return;
     Node* first_output = edge->outputs_[0];
     StringPiece opath = StringPiece(first_output->path());
@@ -593,7 +595,7 @@ void MissingDependencyScanner::ProcessNode(Node* node) {
     vector<Node*> dep_nodes;
     for (vector<StringPiece>::iterator i = depfile_parser.ins_.begin();
          i != depfile_parser.ins_.end(); ++i) {
-      unsigned int slash_bits;
+      uint64_t slash_bits;
       if (!CanonicalizePath(const_cast<char*>(i->str_), &i->len_, &slash_bits,
                             &canon_err))
         return;
