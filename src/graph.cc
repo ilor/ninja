@@ -455,9 +455,9 @@ bool ImplicitDepLoader::LoadDeps(Edge* edge, string* err) {
   return true;
 }
 
-bool ImplicitDepLoader::LoadDepFile(Edge* edge, const string& path,
-                                    string* err) {
-  METRIC_RECORD("depfile load");
+bool ImplicitDepLoader::LoadDepfileDeps(Edge* edge, string path,
+                                        vector<Node*>* depfile_deps,
+                                        string* err) {
   // Read depfile content.  Treat a missing depfile as empty.
   string content;
   switch (disk_interface_->ReadFile(path, &content, err)) {
@@ -500,24 +500,25 @@ bool ImplicitDepLoader::LoadDepFile(Edge* edge, const string& path,
     return false;
   }
 
-  // Preallocate space in edge->inputs_ to be filled in below.
-  vector<Node*>::iterator implicit_dep =
-      PreallocateSpace(edge, depfile.ins_.size());
-
-  // Add all its in-edges.
   for (vector<StringPiece>::iterator i = depfile.ins_.begin();
-       i != depfile.ins_.end(); ++i, ++implicit_dep) {
+       i != depfile.ins_.end(); ++i) {
     uint64_t slash_bits;
     if (!CanonicalizePath(const_cast<char*>(i->str_), &i->len_, &slash_bits,
                           err))
       return false;
-
     Node* node = state_->GetNode(*i, slash_bits);
-    *implicit_dep = node;
-    node->AddOutEdge(edge);
-    CreatePhonyInEdge(node);
+    depfile_deps->push_back(node);
   }
+  return true;
+}
 
+bool ImplicitDepLoader::LoadDepFile(Edge* edge, const string& path,
+                                    string* err) {
+  METRIC_RECORD("depfile load");
+  std::vector<Node*> depfile_deps;
+  if (!LoadDepfileDeps(edge, path, &depfile_deps, err))
+      return false;
+  ApplyLoadedDeps(edge, &depfile_deps[0], depfile_deps.size());
   return true;
 }
 
@@ -537,15 +538,18 @@ bool ImplicitDepLoader::LoadDepsFromLog(Edge* edge, string* err) {
     return false;
   }
 
-  vector<Node*>::iterator implicit_dep =
-      PreallocateSpace(edge, deps->node_count);
-  for (int i = 0; i < deps->node_count; ++i, ++implicit_dep) {
-    Node* node = deps->nodes[i];
+  ApplyLoadedDeps(edge, deps->nodes, deps->node_count);
+  return true;
+}
+
+void ImplicitDepLoader::ApplyLoadedDeps(Edge* edge, Node** nodes, int node_count) {
+  vector<Node*>::iterator implicit_dep = PreallocateSpace(edge, node_count);
+  for (int i = 0; i < node_count; ++i, ++implicit_dep) {
+    Node* node = nodes[i];
     *implicit_dep = node;
     node->AddOutEdge(edge);
     CreatePhonyInEdge(node);
   }
-  return true;
 }
 
 vector<Node*>::iterator ImplicitDepLoader::PreallocateSpace(Edge* edge,
