@@ -247,6 +247,13 @@ struct ImplicitDepLoader {
     return deps_log_;
   }
 
+  /// Load depfile implicit dependencies for \a edge and put them in
+  /// \a depfile_deps without actually updating the dependency links.
+  /// Depfile equivalent of DepsLog::GetDeps.
+  /// @return false on error (without filling \a err if info is just missing)
+  bool LoadDepfileDeps(Edge* edge, std::string path,
+                       std::vector<Node*>* depfile_deps, std::string* err);
+
  private:
   /// Load implicit dependencies for \a edge from a depfile attribute.
   /// @return false on error (without filling \a err if info is just missing).
@@ -255,6 +262,10 @@ struct ImplicitDepLoader {
   /// Load implicit dependencies for \a edge from the DepsLog.
   /// @return false on error (without filling \a err if info is just missing).
   bool LoadDepsFromLog(Edge* edge, std::string* err);
+
+  /// Insert the loaded implicit dependencies (\a nodes) of \a edge
+  /// into the graph.
+  void ApplyLoadedDeps(Edge* edge, Node** nodes, int node_count);
 
   /// Preallocate \a count spaces in the input array on \a edge, returning
   /// an iterator pointing at the first new space.
