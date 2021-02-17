@@ -525,8 +525,13 @@ struct matches {
   std::vector<StringPiece>::iterator i_;
 };
 
+bool ImplicitDepLoader::LoadDepFile(Edge* edge, const std::string& path,
+                                    std::string* err) {
+  METRIC_RECORD("depfile load");
+  return LoadDepfileDeps(edge, path, err);
+}
+
 bool ImplicitDepLoader::LoadDepfileDeps(Edge* edge, std::string path,
-                                        std::vector<Node*>* depfile_deps,
                                         std::string* err) {
   // Read depfile content.  Treat a missing depfile as empty.
   string content;
@@ -588,27 +593,29 @@ bool ImplicitDepLoader::LoadDepfileDeps(Edge* edge, std::string path,
     }
   }
 
-  for (std::vector<StringPiece>::iterator i = depfile.ins_.begin();
-       i != depfile.ins_.end(); ++i) {
+  return ProcessDepfileDeps(edge, &depfile.ins_, err);
+}
+
+bool ImplicitDepLoader::ProcessDepfileDeps(
+    Edge* edge, std::vector<StringPiece>* depfile_ins, std::string* err) {
+  // Preallocate space in edge->inputs_ to be filled in below.
+  vector<Node*>::iterator implicit_dep =
+      PreallocateSpace(edge, depfile_ins->size());
+
+  // Add all its in-edges.
+  for (std::vector<StringPiece>::iterator i = depfile_ins->begin();
+       i != depfile_ins->end(); ++i, ++implicit_dep) {
     uint64_t slash_bits;
     if (!CanonicalizePath(const_cast<char*>(i->str_), &i->len_, &slash_bits,
                           err))
       return false;
 
     Node* node = state_->GetNode(*i, slash_bits);
-    depfile_deps->push_back(node);
+    *implicit_dep = node;
+    node->AddOutEdge(edge);
+    CreatePhonyInEdge(node);
   }
-  return true;
-}
 
-bool ImplicitDepLoader::LoadDepFile(Edge* edge, const std::string& path,
-                                    std::string* err) {
-  METRIC_RECORD("depfile load");
-  std::vector<Node*> depfile_deps;
-  if (!LoadDepfileDeps(edge, path, &depfile_deps, err))
-    return false;
-  if (!depfile_deps.empty())
-    ApplyLoadedDeps(edge, &depfile_deps[0], depfile_deps.size());
   return true;
 }
 
@@ -628,18 +635,15 @@ bool ImplicitDepLoader::LoadDepsFromLog(Edge* edge, string* err) {
     return false;
   }
 
-  ApplyLoadedDeps(edge, deps->nodes, deps->node_count);
-  return true;
-}
-
-void ImplicitDepLoader::ApplyLoadedDeps(Edge* edge, Node** nodes, int node_count) {
-  vector<Node*>::iterator implicit_dep = PreallocateSpace(edge, node_count);
-  for (int i = 0; i < node_count; ++i, ++implicit_dep) {
-    Node* node = nodes[i];
+  vector<Node*>::iterator implicit_dep =
+      PreallocateSpace(edge, deps->node_count);
+  for (int i = 0; i < deps->node_count; ++i, ++implicit_dep) {
+    Node* node = deps->nodes[i];
     *implicit_dep = node;
     node->AddOutEdge(edge);
     CreatePhonyInEdge(node);
   }
+  return true;
 }
 
 vector<Node*>::iterator ImplicitDepLoader::PreallocateSpace(Edge* edge,
@@ -665,4 +669,27 @@ void ImplicitDepLoader::CreatePhonyInEdge(Node* node) {
   // to avoid a potential stuck build.  If we do call RecomputeDirty for
   // this node, it will simply set outputs_ready_ to the correct value.
   phony_edge->outputs_ready_ = true;
+}
+
+bool ImplicitDepNodeLoader::LoadDepfileDepNodes(Edge* edge, std::string path,
+                                                std::vector<Node*>* dep_nodes,
+                                                std::string* err) {
+  dep_nodes_ = dep_nodes;
+  bool ret = LoadDepfileDeps(edge, path, err);
+  dep_nodes_ = NULL;
+  return ret;
+}
+
+bool ImplicitDepNodeLoader::ProcessDepfileDeps(
+    Edge* edge, std::vector<StringPiece>* depfile_ins, std::string* err) {
+  for (std::vector<StringPiece>::iterator i = depfile_ins->begin();
+       i != depfile_ins->end(); ++i) {
+    uint64_t slash_bits;
+    if (!CanonicalizePath(const_cast<char*>(i->str_), &i->len_, &slash_bits,
+                          err))
+      return false;
+    Node* node = state_->GetNode(*i, slash_bits);
+    dep_nodes_->push_back(node);
+  }
+  return true;
 }

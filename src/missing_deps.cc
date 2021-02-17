@@ -61,14 +61,14 @@ void MissingDependencyScanner::ProcessNode(Node* node) {
       ProcessNodeDeps(node, deps->nodes, deps->node_count);
   } else {
     DepfileParserOptions parser_opts;
-    ImplicitDepLoader dep_loader(state_, deps_log_, disk_interface_,
+    ImplicitDepNodeLoader dep_loader(state_, deps_log_, disk_interface_,
                                  &parser_opts);
-    std::vector<Node*> depfile_deps;
     std::string depfile = edge->GetUnescapedDepfile();
     if (depfile.empty())
       return;
     std::string err;
-    dep_loader.LoadDepfileDeps(edge, depfile, &depfile_deps, &err);
+    std::vector<Node*> depfile_deps;
+    dep_loader.LoadDepfileDepNodes(edge, depfile, &depfile_deps, &err);
     if (!depfile_deps.empty())
       ProcessNodeDeps(node, &depfile_deps[0], depfile_deps.size());
   }
