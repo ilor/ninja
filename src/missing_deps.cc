@@ -40,11 +40,6 @@ MissingDependencyScanner::MissingDependencyScanner(
       disk_interface_(disk_interface), missing_dep_path_count_(0) {
 }
 
-void MissingDependencyScannerCallback(void* data, Node* const node,
-                                      size_t depfile_ins_size) {
-  reinterpret_cast<std::vector<Node*>*>(data)->push_back(node);
-}
-
 void MissingDependencyScanner::ProcessNode(Node* node) {
   if (!node)
     return;
@@ -73,8 +68,7 @@ void MissingDependencyScanner::ProcessNode(Node* node) {
     if (depfile.empty())
       return;
     std::string err;
-    dep_loader.LoadDepfileDeps(edge, depfile, MissingDependencyScannerCallback,
-                               &depfile_deps, &err);
+    dep_loader.LoadDepfileDeps(edge, depfile, &depfile_deps, &err);
     if (!depfile_deps.empty())
       ProcessNodeDeps(node, &depfile_deps[0], depfile_deps.size());
   }
