@@ -252,20 +252,8 @@ struct ImplicitDepLoader {
   /// Depfile equivalent of DepsLog::GetDeps.
   /// @return false on error (without filling \a err if info is just missing)
   bool LoadDepfileDeps(Edge* edge, std::string path,
-                       std::vector<Node*>* depfile_deps, std::string* err);
-
- private:
-  /// Load implicit dependencies for \a edge from a depfile attribute.
-  /// @return false on error (without filling \a err if info is just missing).
-  bool LoadDepFile(Edge* edge, const std::string& path, std::string* err);
-
-  /// Load implicit dependencies for \a edge from the DepsLog.
-  /// @return false on error (without filling \a err if info is just missing).
-  bool LoadDepsFromLog(Edge* edge, std::string* err);
-
-  /// Insert the loaded implicit dependencies (\a nodes) of \a edge
-  /// into the graph.
-  void ApplyLoadedDeps(Edge* edge, Node** nodes, int node_count);
+                       void (*add_dep_callback)(void*, Node*, size_t),
+                       void* callback_data, std::string* err);
 
   /// Preallocate \a count spaces in the input array on \a edge, returning
   /// an iterator pointing at the first new space.
@@ -275,6 +263,15 @@ struct ImplicitDepLoader {
   /// create one; this makes us not abort if the input is missing,
   /// but instead will rebuild in that circumstance.
   void CreatePhonyInEdge(Node* node);
+
+ private:
+  /// Load implicit dependencies for \a edge from a depfile attribute.
+  /// @return false on error (without filling \a err if info is just missing).
+  bool LoadDepFile(Edge* edge, const std::string& path, std::string* err);
+
+  /// Load implicit dependencies for \a edge from the DepsLog.
+  /// @return false on error (without filling \a err if info is just missing).
+  bool LoadDepsFromLog(Edge* edge, std::string* err);
 
   State* state_;
   DiskInterface* disk_interface_;
