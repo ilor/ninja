@@ -25,6 +25,44 @@
 #include "state.h"
 #include "util.h"
 
+namespace {
+
+/// ImplicitDepLoader variant that stores dep nodes into the given output
+/// without updating graph deps like the base loader does.
+struct NodeStoringImplicitDepLoader : public ImplicitDepLoader {
+  NodeStoringImplicitDepLoader(
+      State* state, DepsLog* deps_log, DiskInterface* disk_interface,
+      DepfileParserOptions const* depfile_parser_options,
+      std::vector<Node*>* dep_nodes_output)
+      : ImplicitDepLoader(state, deps_log, disk_interface,
+                          depfile_parser_options),
+        dep_nodes_output_(dep_nodes_output) {}
+
+ protected:
+  virtual bool ProcessDepfileDeps(Edge* edge,
+                                  std::vector<StringPiece>* depfile_ins,
+                                  std::string* err);
+
+ private:
+  std::vector<Node*>* dep_nodes_output_;
+};
+
+bool NodeStoringImplicitDepLoader::ProcessDepfileDeps(
+    Edge* edge, std::vector<StringPiece>* depfile_ins, std::string* err) {
+  for (std::vector<StringPiece>::iterator i = depfile_ins->begin();
+       i != depfile_ins->end(); ++i) {
+    uint64_t slash_bits;
+    if (!CanonicalizePath(const_cast<char*>(i->str_), &i->len_, &slash_bits,
+                          err))
+      return false;
+    Node* node = state_->GetNode(*i, slash_bits);
+    dep_nodes_output_->push_back(node);
+  }
+  return true;
+}
+
+}  // namespace
+
 MissingDependencyScannerDelegate::~MissingDependencyScannerDelegate() {}
 
 void MissingDependencyPrinter::OnMissingDep(Node* node, const std::string& path,
@@ -37,8 +75,7 @@ MissingDependencyScanner::MissingDependencyScanner(
     MissingDependencyScannerDelegate* delegate, DepsLog* deps_log, State* state,
     DiskInterface* disk_interface)
     : delegate_(delegate), deps_log_(deps_log), state_(state),
-      disk_interface_(disk_interface), missing_dep_path_count_(0) {
-}
+      disk_interface_(disk_interface), missing_dep_path_count_(0) {}
 
 void MissingDependencyScanner::ProcessNode(Node* node) {
   if (!node)
@@ -61,14 +98,11 @@ void MissingDependencyScanner::ProcessNode(Node* node) {
       ProcessNodeDeps(node, deps->nodes, deps->node_count);
   } else {
     DepfileParserOptions parser_opts;
-    ImplicitDepNodeLoader dep_loader(state_, deps_log_, disk_interface_,
-                                 &parser_opts);
-    std::string depfile = edge->GetUnescapedDepfile();
-    if (depfile.empty())
-      return;
-    std::string err;
     std::vector<Node*> depfile_deps;
-    dep_loader.LoadDepfileDepNodes(edge, depfile, &depfile_deps, &err);
+    NodeStoringImplicitDepLoader dep_loader(state_, deps_log_, disk_interface_,
+                                            &parser_opts, &depfile_deps);
+    std::string err;
+    dep_loader.LoadDeps(edge, &err);
     if (!depfile_deps.empty())
       ProcessNodeDeps(node, &depfile_deps[0], depfile_deps.size());
   }
