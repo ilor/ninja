@@ -248,11 +248,6 @@ struct ImplicitDepLoader {
   }
 
  protected:
-  /// Load depfile implicit dependencies for \a edge and feed them to
-  /// ProcessDepfileDeps
-  /// @return false on error (without filling \a err if info is just missing)
-  bool LoadDepfileDeps(Edge* edge, std::string path, std::string* err);
-
   /// Process loaded implicit dependencies for \a edge and update the graph
   /// @return false on error (without filling \a err if info is just missing)
   virtual bool ProcessDepfileDeps(Edge* edge,
@@ -282,30 +277,6 @@ struct ImplicitDepLoader {
   DepfileParserOptions const* depfile_parser_options_;
 };
 
-/// ImplicitDepLoader variant that returns dep nodes without updating graph
-/// deps.
-struct ImplicitDepNodeLoader : public ImplicitDepLoader {
-  ImplicitDepNodeLoader(State* state, DepsLog* deps_log,
-                        DiskInterface* disk_interface,
-                        DepfileParserOptions const* depfile_parser_options)
-      : ImplicitDepLoader(state, deps_log, disk_interface,
-                          depfile_parser_options),
-        dep_nodes_(NULL) {}
-
-  /// Load depfile implicit dependencies for \a edge and return them
-  /// without actually updating the dependency links.
-  /// Depfile equivalent of DepsLog::GetDeps.
-  /// @return false on error (without filling \a err if info is just missing)
-  bool LoadDepfileDepNodes(Edge* edge, std::string path,
-                           std::vector<Node*>* dep_nodes, std::string* err);
-
- private:
-  virtual bool ProcessDepfileDeps(Edge* edge,
-                                  std::vector<StringPiece>* depfile_ins,
-                                  std::string* err);
-
-  std::vector<Node*>* dep_nodes_;
-};
 
 /// DependencyScan manages the process of scanning the files in a graph
 /// and updating the dirty/outputs_ready state of all the nodes and edges.
